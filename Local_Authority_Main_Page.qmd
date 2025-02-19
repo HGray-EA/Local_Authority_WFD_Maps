@@ -12,6 +12,24 @@ format:
     callout-icon: false
 ---
 
+```{r quarto setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo=FALSE, cache=TRUE)
+#| warning: false
+#| echo: false
+```
+
+```{css}
+.dataTables_wrapper {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.dataTables_wrapper table {
+font-size: 11px;
+}
+```
+
+
 ```{r}
 source('Set_LAD_Catchment.R')
 ```
@@ -60,4 +78,138 @@ CDE_e_2022 <- CDE %>%
            Year == sort(unique(CDE$Year), decreasing=TRUE)[1])     
     
 ```
+## Somerset Management Catchments
+
+```{r}
+ggplot(CDE_Som[10])+geom_sf(aes(fill=CDE_Som$Management.Catchment))+theme_void()+labs(fill = "EA Management Catchments")
+```
+
+## Overview of Water Quality
+
+Within the `r unique(Som$LAD24NM)`'s `r length(unique(CAT$WB_NAME))` individual EA waterbodies. In the most recent WFD classification in `r sort(unique(CDE$Year), decreasing=TRUE)[1]`, `r round(sum(CDE_e_2022$Status == "Good")/length(unique(CAT$WB_NAME))*100, digits=0)`% of waterbodies scored "Good" for `r unique(CDE_e_2022$Classification.Item)`, whilst `r round(sum(CDE_e_2022$Status == "High")/length(unique(CAT$WB_NAME))*100, digits=0)`% of waterbodies scored "High".
+
+
+```{r}
+CDE_e <- CDE %>% 
+         filter(Classification.Item == "Physio-Chemical Quality Elements" & 
+         Year == c(2022))
+
+         leaflet() %>% 
+  addProviderTiles(providers$Esri,
+                   group = "Esri Basemap") %>% 
+  addPolygons(data= CDE_e_2022,
+              color = "black",
+              weight = 0.5,
+              fillOpacity = 0.7,
+              fillColor = ~pal(Status),
+              popup= ~Water.Body,
+              highlightOptions = highlightOptions(color = "white", weight = 4,
+                      bringToFront = FALSE),
+              group = "2022 Status") %>% 
+  addLegend(opacity = 0.9, 
+            pal = pal,
+            values = CDE_e_2022$Status,
+            title = unique(CDE_e_2019$Classification.Item))
+
+```
+## Water Quantity
+
+The Environment Agency use the catchment abstraction management strategy (CAMS) process and abstraction licensing strategies to regulate existing abstraction licenses (how much water is taken from the environment) and grant new permits.
+
+An Environmental Flow Indicator (EFI) is used to indicate where abstraction pressures may start to cause undesirable effects on river habitats and ecology. Non-compliance with the EFI is divided into 3 categories depending on how far below the EFI recent actual flows are. The below map shows different flow scenarios and their related compliance reletive to EFI. Q95 are low flows such as during summer months, exceeded 95% of the time, whilst Q30 flows are exceeded 30% of the time. Mean flow in most surface waters is nearer to Q30 than Q50.
+
+```{r}
+#MetBrewer::met.brewer(name = "Isfahan2")
+
+library(leaflet)
+library(magrittr)
+library(tidyverse)
+
+ALS <- readxl::read_excel("/dbfs/FileStore/WSX_HGray/Copy_of_Parrett_WRGIS_info.xlsx", skip =3) %>% 
+                  rename_with(make.names)
+
+ALS$FL.Flow.Compliance.Q95 <- gsub("BAND 1", "BAND1", ALS$FL.Flow.Compliance.Q95)
+
+ALS %<>% 
+  inner_join(CAT, ., by = c("WB_ID" ="EA_WB_ID")) %>% 
+           sf::st_transform(4326) %>% 
+            select(10:35)
+
+
+
+# Define palette
+pal_ALS <- colorFactor(
+  palette = c("#79ad41", "#ddc000", "#cf3a36"),
+  levels = c("COMPLIANT", "BAND1", "BAND3"),
+  na.color = "transparent"
+)
+
+
+ leaflet(ALS) %>% 
+  addProviderTiles(providers$Esri) %>% 
+   
+   addPolygons(
+              color = "black",
+              weight = 0.5,
+              fillOpacity = 0.9,
+              fillColor = ~pal_ALS(FL.Flow.Compliance.Q95),
+              popup= ~paste0("Waterbody: ", WB_NAME,
+                             "<br> WB_ID: ", ALS$WB_ID,
+                             "<br> Surplus/Deficit: ", round(((ALS$FL_Q95.Surplus...Deficit.as...of.QN)*100),0),"%"),
+              highlightOptions = highlightOptions(color = "white", weight = 4,
+                      bringToFront = FALSE),
+              group= "Q95 Flow Compliance") %>% 
+   
+  addPolygons(
+              color = "black",
+              weight = 0.5,
+              fillOpacity = 0.9,
+              fillColor = ~pal_ALS(FL.Flow.Compliance.Q70),
+               popup= ~paste0("Waterbody: ", WB_NAME,
+                             "<br> WB_ID: ", ALS$WB_ID,
+                             "<br> Surplus/Deficit: ", round(((ALS$FL_Q70.Surplus...Deficit.as...of.QN)*100),0),"%"),
+              highlightOptions = highlightOptions(color = "white", weight = 4,
+                      bringToFront = FALSE),
+              group= "Q70 Flow Compliance") %>% 
+   
+  addPolygons(
+              color = "black",
+              weight = 0.5,
+              fillOpacity = 0.9,
+              fillColor = ~pal_ALS(FL.Flow.Compliance.Q50),
+               popup= ~paste0("Waterbody: ", WB_NAME,
+                             "<br> WB_ID: ", ALS$WB_ID,
+                             "<br> Surplus/Deficit: ", round(((ALS$FL_Q50.Surplus...Deficit.as...of.QN)*100),0),"%"),
+              highlightOptions = highlightOptions(color = "white", weight = 4,
+                      bringToFront = FALSE),
+              group = "Q50 Flow Compliance") %>% 
+   
+  addPolygons(
+              color = "black",
+              weight = 0.5,
+              fillOpacity = 0.9,
+              fillColor = ~pal_ALS(FL.Flow.Compliance.Q30),
+               popup= ~paste0("Waterbody: ", WB_NAME,
+                             "<br> WB_ID: ", ALS$WB_ID,
+                             "<br> Surplus/Deficit: ", round(((ALS$FL_Q30.Surplus...Deficit.as...of.QN)*100),0),"%"),
+              highlightOptions = highlightOptions(color = "white", weight = 4,
+                      bringToFront = FALSE),
+              group = "Q30 Flow Compliance") %>% 
+   
+  addLegend(opacity = 0.9, 
+            pal = pal_ALS,
+            values = ALS$FL.Flow.Compliance.Q95,
+            title = "Water Availability") %>%
+   
+  addLayersControl(baseGroups = c( "Q95 Flow Compliance",
+                                   "Q70 Flow Compliance",
+                                   "Q50 Flow Compliance",
+                                   "Q30 Flow Compliance"),
+                   position = "topright",
+                   options= layersControlOptions(collapsed=FALSE)) 
+
+```
+
+
+
 
