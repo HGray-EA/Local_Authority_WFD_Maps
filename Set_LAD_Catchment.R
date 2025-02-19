@@ -1,5 +1,7 @@
 library(sf)
 library(tidyverse)
+library(magrittr)
+library(leaflet)
 
 Som <- read_sf("/dbfs/FileStore/WSX_HGray/LAD_MAY_2024_UK_BFE.shp") %>% st_transform(4326) %>% 
   filter(LAD24NM == "Somerset")
