@@ -1,0 +1,63 @@
+---
+title: "Somerset Local Authority"
+format:
+  html:
+    theme: flatly
+    toc: true
+    toc-location: right
+    number-sections: true
+    code-fold: false
+    code-tools: false
+    fig-cap: true
+    callout-icon: false
+---
+
+```{r}
+source('Set_LAD_Catchment.R')
+```
+
+```{r Set up catchment area to local authority}
+
+catch <- read_sf("/dbfs/mnt/lab/unrestricted/harry.gray@environment-agency.gov.uk/Interim_WFD_2022.shp")# Catchment shapefiles
+
+CAT <- catch %>% filter(WB_ID %in% unique(CDE_Som$WB_ID))
+
+CAT_Union <- st_union(CAT) %>% 
+  st_transform(4326)
+
+CAT_27700 <- CAT
+CAT <- CAT %>%  st_transform(4326)
+
+CPS <- read.csv("/dbfs/mnt/lab/unrestricted/harry.gray@environment-agency.gov.uk/ETL_Exports/CPS_101024_wMeasures.csv")
+
+#Temporary RNAGs transforms
+    RFF <- read.csv("/dbfs/FileStore/WSX_HGray/ETL_Exports/RFF.csv")
+    RFF <- RFF[RFF$WATERBODY_ID %in% unique(CDE_Som$WB_ID),]
+
+    # Temporary Measures Transforms.
+# Provenenace: CPS SQL Server, EA Internal, SQL script reads, writes to csv then upload to databricks. 31/12/24
+    Measures_Class <- read.csv("/dbfs/FileStore/WSX_HGray/ETL_Exports/Measure_Class.csv")  
+    Measures_WBs <- read.csv("/dbfs/FileStore/WSX_HGray/ETL_Exports/wb_connections.csv") %>% 
+      filter(AREA_NAME== "Wessex")
+    Measures_Cat <- read.csv("/dbfs/FileStore/WSX_HGray/ETL_Exports/MES_CATS.csv")  
+    
+    Mes <- Measures_WBs %>% filter(WATERBODY_ID %in% unique(CDE_Som$WB_ID))
+                
+    
+    CAT_geo <- subset(CAT, select = c(WB_ID, geometry))
+    
+    CPS_sf <- inner_join(CAT_geo, CPS, by = c("WB_ID" = "WATERBODY_ID"))
+    
+    CDE %<>% st_drop_geometry() %>% 
+  inner_join(CAT_geo, ., by = c("WB_ID" = "WB_ID"))
+
+CDE_e_2019 <- CDE %>% 
+  filter(Classification.Item == "Physio-Chemical Quality Elements" & 
+           Year == "2019")
+# 2022 map
+CDE_e_2022 <- CDE %>% 
+  filter(Classification.Item == "Physio-Chemical Quality Elements" & 
+           Year == sort(unique(CDE$Year), decreasing=TRUE)[1])     
+    
+```
+
